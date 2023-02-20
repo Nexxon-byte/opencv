@@ -1,36 +1,41 @@
-mport requests
-import cv2
+import requests
+import pygame.camera
+import pygame.image
+import time
+import io
+from PIL import Image
 
-# Öffnen der Kamera und Konfiguration der Auflösung
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+# Define URL for API endpoint
+url = "http://127.0.0.1:8000/api"
 
-# Schleife zum Lesen von Frames aus der Kamera und Senden an den Server
+# Initialize pygame camera
+pygame.camera.init()
+
+# Initialize camera capture
+cam = pygame.camera.Camera("/dev/video0", (640, 480))
+cam.start()
+
 while True:
-    # Lesen des aktuellen Frames aus der Kamera
-    ret, frame = cap.read()
+    # Capture an image
+    img = cam.get_image()
 
-    # Konvertieren des Frames in ein Byte-Array
-    ret, buffer = cv2.imencode('.jpg', frame)
-    jpg_as_text = buffer.tobytes()
+    # Wait for a short time before capturing another image
+    time.sleep(0.3)
 
-    # Definieren des API-Endpunkts des Servers und der zu sendenden Daten
-    url = 'http://localhost:8000/api'
-    files = {'image': ('image.jpg', jpg_as_text)}
+    # Convert image to JPEG format
+    img_str = pygame.image.tostring(img, "RGB")
+    img_jpg = Image.frombytes("RGB", (640, 480), img_str).convert("RGB")
+    img_bytes = io.BytesIO()
+    img_jpg.save(img_bytes, format='JPEG')
+    img_bytes = img_bytes.getvalue()
 
-    # Senden der Daten an den Server und Warten auf die Antwort
-    response = None
-    while not response:
-        response = requests.post(url, files=files)
+    # Send image to API
+    files = {'file': ('image.jpg', img_bytes)}
+    r = requests.post(url, files=files)
 
-    # Drucken der Server-Antwort
-    print(response.text)
+    # Display response from API
+    print(r.text)
 
-    # Warten auf Tastendruck zum Beenden der Schleife
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-# Freigabe der Kamera und Schließen des Skripts
-cap.release()
-cv2.destroyAllWindows()
+# Clean up
+cam.stop()
+pygame.camera.quit()
